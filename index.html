@@ -41,6 +41,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .snum{font-size:16px;font-weight:700;color:var(--text)}
 .snum.green{color:var(--green)}
 .snum.orange{color:var(--orange)}
+.snum.red{color:var(--red)}
 .slbl{font-size:9.5px;color:var(--text2);margin-top:1px}
 
 /* CAISSE */
@@ -82,6 +83,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .prod-row-name{font-size:13px;font-weight:600}
 .prod-row-price{font-size:13px;font-weight:700;color:var(--orange);margin-left:8px}
 .prod-row-del{background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0 4px;margin-left:8px}
+.achat-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.achat-item:last-child{border-bottom:none}
+.achat-left{flex:1;min-width:0}
+.achat-desc{font-size:13px;font-weight:600}
+.achat-date{font-size:10.5px;color:var(--text3);margin-top:1px}
+.achat-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.achat-montant{font-size:13.5px;font-weight:700;color:var(--red)}
 
 /* HISTORIQUE / RAPPORTS */
 .filter-row{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;scrollbar-width:none}
@@ -136,6 +144,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
     Produits
   </button>
+  <button class="tab-btn" onclick="showTab('achats')" id="tb-achats">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 6h15l-1.5 9h-12L6 6zM6 6L5 3H2m4 3l1.6 9.6a2 2 0 002 1.9h8.8a2 2 0 002-1.7L21 9M9 22a1 1 0 100-2 1 1 0 000 2zM18 22a1 1 0 100-2 1 1 0 000 2z"/></svg>
+    Achats
+  </button>
   <button class="tab-btn" onclick="showTab('historique')" id="tb-historique">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     Historique
@@ -189,6 +201,30 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   </div>
 </div>
 
+<!-- ACHATS -->
+<div class="panel" id="panel-achats">
+  <div class="card">
+    <div class="sec" style="margin-top:0">Ajouter un achat</div>
+    <div class="field">
+      <label>Description</label>
+      <input type="text" id="inp-achat-desc" placeholder="Ex: Boissons, chips, sacs...">
+    </div>
+    <div class="field">
+      <label>Montant (€)</label>
+      <input type="number" id="inp-achat-montant" placeholder="0.00" step="0.01" min="0" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="inp-achat-date">
+    </div>
+    <button class="btn-main" onclick="addAchat()">Enregistrer l'achat</button>
+  </div>
+  <div class="card">
+    <div class="sec" style="margin-top:0">Achats enregistrés</div>
+    <div id="achats-list"></div>
+  </div>
+</div>
+
 <!-- HISTORIQUE -->
 <div class="panel" id="panel-historique">
   <div class="filter-row">
@@ -221,8 +257,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   </div>
 
   <div class="solde-box">
-    <div class="solde-lbl">Total vendu sur la période</div>
-    <div class="solde-val" id="rap-total">0.00 €</div>
+    <div class="solde-lbl">Solde net (ventes − achats)</div>
+    <div class="solde-val" id="rap-solde-net">0.00 €</div>
   </div>
 
   <div class="stats3">
@@ -230,10 +266,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="scard"><div class="snum orange" id="rap-cb">0.00 €</div><div class="slbl">CB</div></div>
     <div class="scard"><div class="snum" id="rap-nb">0</div><div class="slbl">Ventes</div></div>
   </div>
+  <div class="stats3" style="grid-template-columns:1fr 1fr">
+    <div class="scard"><div class="snum orange" id="rap-total-ventes">0.00 €</div><div class="slbl">Total ventes</div></div>
+    <div class="scard"><div class="snum red" id="rap-total-achats">0.00 €</div><div class="slbl">Total achats</div></div>
+  </div>
 
   <div class="card">
     <div class="sec" style="margin-top:0">Détail des ventes</div>
     <div id="rap-list"></div>
+  </div>
+  <div class="card">
+    <div class="sec" style="margin-top:0">Détail des achats</div>
+    <div id="rap-achats-list"></div>
   </div>
 
   <button class="btn-pdf" onclick="exportPDF()">⬇ Télécharger le PDF</button>
@@ -263,10 +307,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 const K_PROD='asmb_buvette_products';
 const K_TX='asmb_buvette_transactions';
 const K_PROC='asmb_buvette_procedure';
+const K_ACHATS='asmb_buvette_achats';
+
+const DEFAULT_PROC=[
+  {id:'d1',text:"Vérifier le fond de caisse (compter et noter le montant de départ)"},
+  {id:'d2',text:"S'identifier : nom et prénom (parent référent ou autre), équipe en option"}
+];
 
 let products=JSON.parse(localStorage.getItem(K_PROD)||'[]');
 let transactions=JSON.parse(localStorage.getItem(K_TX)||'[]');
-let procedure=JSON.parse(localStorage.getItem(K_PROC)||'[]');
+let procedure=localStorage.getItem(K_PROC)===null?DEFAULT_PROC.slice():JSON.parse(localStorage.getItem(K_PROC));
+let achats=JSON.parse(localStorage.getItem(K_ACHATS)||'[]');
 let panier=[]; // {id,name,price,qty}
 let currentFilter='tout';
 let periodMode='hebdo';
@@ -274,6 +325,7 @@ let periodMode='hebdo';
 function saveProd(){localStorage.setItem(K_PROD,JSON.stringify(products));}
 function saveTx(){localStorage.setItem(K_TX,JSON.stringify(transactions));}
 function saveProc(){localStorage.setItem(K_PROC,JSON.stringify(procedure));}
+function saveAchats(){localStorage.setItem(K_ACHATS,JSON.stringify(achats));}
 
 function showTab(name){
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -281,6 +333,7 @@ function showTab(name){
   document.getElementById('panel-'+name).classList.add('active');
   document.getElementById('tb-'+name).classList.add('active');
   if(name==='produits')renderProdList();
+  if(name==='achats')renderAchatsList();
   if(name==='historique')renderHistorique();
   if(name==='rapports')renderRapport();
   if(name==='procedure')renderProc();
@@ -366,6 +419,41 @@ function renderProdList(){
       </span>
     </div>`).join('');
 }
+
+/* ===== ACHATS ===== */
+function addAchat(){
+  const desc=document.getElementById('inp-achat-desc').value.trim();
+  const montant=parseFloat(document.getElementById('inp-achat-montant').value);
+  const date=document.getElementById('inp-achat-date').value||todayISO();
+  if(!desc){alert('Description manquante.');return;}
+  if(!montant||montant<=0){alert('Montant invalide.');return;}
+  achats.unshift({id:Date.now()+'-'+Math.random().toString(36).slice(2,7),desc,montant:Math.round(montant*100)/100,date});
+  saveAchats();
+  document.getElementById('inp-achat-desc').value='';
+  document.getElementById('inp-achat-montant').value='';
+  renderAchatsList();
+}
+function deleteAchat(id){
+  if(!confirm('Supprimer cet achat ?'))return;
+  achats=achats.filter(a=>a.id!==id);
+  saveAchats();renderAchatsList();
+}
+function renderAchatsList(){
+  const el=document.getElementById('achats-list');
+  if(!achats.length){el.innerHTML='<div class="empty-msg">Aucun achat enregistré</div>';return;}
+  el.innerHTML=achats.map(a=>`
+    <div class="achat-item">
+      <div class="achat-left">
+        <div class="achat-desc">${a.desc}</div>
+        <div class="achat-date">${fmtDate(a.date)}</div>
+      </div>
+      <div class="achat-right">
+        <span class="achat-montant">-${a.montant.toFixed(2)} €</span>
+        <button class="vente-del" onclick="deleteAchat('${a.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 
 /* ===== HISTORIQUE ===== */
 function setFilter(f){
@@ -464,50 +552,83 @@ function txInPeriod(){
   const start=new Date(s.toDateString()),end=new Date(e.toDateString());end.setHours(23,59,59,999);
   return transactions.filter(t=>{const td=new Date(t.date);return td>=start&&td<=end;}).sort((a,b)=>a.date.localeCompare(b.date)+a.time.localeCompare(b.time));
 }
+function achatsInPeriod(){
+  const range=currentPeriodRange();if(!range)return [];
+  const [s,e]=range;
+  const start=new Date(s.toDateString()),end=new Date(e.toDateString());end.setHours(23,59,59,999);
+  return achats.filter(a=>{const ad=new Date(a.date);return ad>=start&&ad<=end;}).sort((a,b)=>a.date.localeCompare(b.date));
+}
 function renderRapport(){
   const list=txInPeriod();
+  const achatsList=achatsInPeriod();
   const totEsp=list.filter(t=>t.mode==='especes').reduce((s,t)=>s+t.total,0);
   const totCB=list.filter(t=>t.mode==='cb').reduce((s,t)=>s+t.total,0);
+  const totVentes=totEsp+totCB;
+  const totAchats=achatsList.reduce((s,a)=>s+a.montant,0);
   document.getElementById('rap-esp').textContent=totEsp.toFixed(2)+' €';
   document.getElementById('rap-cb').textContent=totCB.toFixed(2)+' €';
-  document.getElementById('rap-total').textContent=(totEsp+totCB).toFixed(2)+' €';
   document.getElementById('rap-nb').textContent=list.length;
+  document.getElementById('rap-total-ventes').textContent=totVentes.toFixed(2)+' €';
+  document.getElementById('rap-total-achats').textContent=totAchats.toFixed(2)+' €';
+  document.getElementById('rap-solde-net').textContent=(totVentes-totAchats).toFixed(2)+' €';
+
   const el=document.getElementById('rap-list');
-  if(!list.length){el.innerHTML='<div class="empty-msg">Aucune vente sur cette période</div>';return;}
-  el.innerHTML=list.map(t=>`
-    <div class="vente-item">
-      <div class="vente-top">
-        <span class="vente-date">${fmtDate(t.date)} — ${t.time}<span class="vente-mode ${t.mode}">${t.mode==='especes'?'Espèces':'CB'}</span></span>
-        <span class="vente-total">${t.total.toFixed(2)} €</span>
-      </div>
-      <div class="vente-detail">${detailStr(t.items)}</div>
-    </div>`).join('');
+  if(!list.length){el.innerHTML='<div class="empty-msg">Aucune vente sur cette période</div>';}
+  else{
+    el.innerHTML=list.map(t=>`
+      <div class="vente-item">
+        <div class="vente-top">
+          <span class="vente-date">${fmtDate(t.date)} — ${t.time}<span class="vente-mode ${t.mode}">${t.mode==='especes'?'Espèces':'CB'}</span></span>
+          <span class="vente-total">${t.total.toFixed(2)} €</span>
+        </div>
+        <div class="vente-detail">${detailStr(t.items)}</div>
+      </div>`).join('');
+  }
+
+  const elA=document.getElementById('rap-achats-list');
+  if(!achatsList.length){elA.innerHTML='<div class="empty-msg">Aucun achat sur cette période</div>';}
+  else{
+    elA.innerHTML=achatsList.map(a=>`
+      <div class="achat-item">
+        <div class="achat-left">
+          <div class="achat-desc">${a.desc}</div>
+          <div class="achat-date">${fmtDate(a.date)}</div>
+        </div>
+        <div class="achat-montant">-${a.montant.toFixed(2)} €</div>
+      </div>`).join('');
+  }
 }
 function exportPDF(){
   const range=currentPeriodRange();
   if(!range){alert('Choisis d\'abord une période.');return;}
   const list=txInPeriod();
+  const achatsList=achatsInPeriod();
   const label=periodLabel();
   const totEsp=list.filter(t=>t.mode==='especes').reduce((s,t)=>s+t.total,0);
   const totCB=list.filter(t=>t.mode==='cb').reduce((s,t)=>s+t.total,0);
-  const totalGen=totEsp+totCB;
+  const totVentes=totEsp+totCB;
+  const totAchats=achatsList.reduce((s,a)=>s+a.montant,0);
+  const soldeNet=totVentes-totAchats;
 
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF();
   doc.setFont('helvetica','bold');doc.setFontSize(16);
-  doc.text('ASMB Basket — Buvette — Rapport de ventes',14,18);
+  doc.text('ASMB Basket — Buvette — Rapport',14,18);
   doc.setFont('helvetica','normal');doc.setFontSize(11);
   doc.text(label,14,26);
   doc.setDrawColor(220,220,220);doc.line(14,30,196,30);
 
   let y=40;
-  doc.setFont('helvetica','bold');doc.setFontSize(9);
+  doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text('Ventes',14,y);y+=8;
+  doc.setFontSize(9);
   doc.text('Date',14,y);doc.text('Heure',36,y);doc.text('Détail',56,y);doc.text('Mode',150,y);doc.text('Montant',196,y,{align:'right'});
   y+=3;doc.setDrawColor(150,150,150);doc.line(14,y,196,y);y+=6;
   doc.setFont('helvetica','normal');
 
+  if(!list.length){doc.text('Aucune vente sur cette période',14,y);y+=8;}
   list.forEach(t=>{
-    if(y>275){doc.addPage();y=20;}
+    if(y>270){doc.addPage();y=20;}
     doc.text(fmtDate(t.date),14,y);
     doc.text(t.time,36,y);
     let d=detailStr(t.items);if(d.length>58)d=d.slice(0,57)+'…';
@@ -518,11 +639,31 @@ function exportPDF(){
   });
 
   y+=4;doc.setDrawColor(150,150,150);doc.line(14,y,196,y);y+=9;
+  doc.setFont('helvetica','bold');doc.setFontSize(11);
+  doc.text('Achats',14,y);y+=8;
+  doc.setFontSize(9);
+  doc.text('Date',14,y);doc.text('Description',36,y);doc.text('Montant',196,y,{align:'right'});
+  y+=3;doc.setDrawColor(150,150,150);doc.line(14,y,196,y);y+=6;
+  doc.setFont('helvetica','normal');
+
+  if(!achatsList.length){doc.text('Aucun achat sur cette période',14,y);y+=8;}
+  achatsList.forEach(a=>{
+    if(y>270){doc.addPage();y=20;}
+    doc.text(fmtDate(a.date),14,y);
+    let d=a.desc;if(d.length>70)d=d.slice(0,69)+'…';
+    doc.text(d,36,y);
+    doc.text('-'+a.montant.toFixed(2)+' €',196,y,{align:'right'});
+    y+=6.5;
+  });
+
+  y+=4;doc.setDrawColor(150,150,150);doc.line(14,y,196,y);y+=9;
   doc.setFontSize(11);
   doc.text(`Total espèces : ${totEsp.toFixed(2)} €`,14,y);y+=7;
   doc.text(`Total CB : ${totCB.toFixed(2)} €`,14,y);y+=7;
+  doc.text(`Total ventes : ${totVentes.toFixed(2)} €`,14,y);y+=7;
+  doc.text(`Total achats : ${totAchats.toFixed(2)} €`,14,y);y+=7;
   doc.setFont('helvetica','bold');
-  doc.text(`Total général : ${totalGen.toFixed(2)} €`,14,y);
+  doc.text(`Solde net : ${soldeNet.toFixed(2)} €`,14,y);
 
   const filenameLabel=periodMode==='hebdo'?document.getElementById('inp-semaine').value:document.getElementById('inp-mois').value;
   doc.save(`ASMB_buvette_${periodMode}_${filenameLabel||'periode'}.pdf`);
@@ -534,7 +675,8 @@ function exportAllData(){
     exportedAt:new Date().toISOString(),
     products,
     transactions,
-    procedure
+    procedure,
+    achats
   };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -556,8 +698,9 @@ function importAllData(event){
     products=data.products||[];
     transactions=data.transactions||[];
     procedure=data.procedure||[];
-    saveProd();saveTx();saveProc();
-    buildProdGrid();renderPanier();renderProdList();renderHistorique();renderRapport();renderProc();
+    achats=data.achats||[];
+    saveProd();saveTx();saveProc();saveAchats();
+    buildProdGrid();renderPanier();renderProdList();renderHistorique();renderRapport();renderProc();renderAchatsList();
     alert('Sauvegarde importée ✓');
   };
   reader.readAsText(file);
@@ -588,6 +731,7 @@ function deleteProc(id){
 
 /* ===== INIT ===== */
 buildProdGrid();renderPanier();
+document.getElementById('inp-achat-date').value=todayISO();
 (function(){
   const now=new Date();
   const onejan=new Date(now.getFullYear(),0,1);
